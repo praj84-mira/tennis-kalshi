@@ -13,7 +13,10 @@ package, by design.** See `PROJECT_BRIEF.md` for the reasoning.
 ## Run
 
 ```
-python3 monitor.py              # every 30s, appends data/monitor.csv; leave it running
+python3 app.py                  # dashboard at http://127.0.0.1:8765 (runs the monitor loop itself)
+python3 backtest.py fetch       # ~1,750 settled matches since Wimbledon, 1-min Kalshi prices, cached in data/hist/
+python3 backtest.py analyze     # calibration + H1/H2/reload P&L report -> data/hist/report.txt
+python3 monitor.py              # headless monitor: every 30s, appends data/monitor.csv
 python3 monitor.py --once       # one tick, print the table
 python3 settle.py --min-gap 0.05          # after matches settle: Brier model vs market
 python3 fair.py --tour ATP --anchor 0.92 --sets 0-1 --games 2-2 --server A --pts 30-40 --mid 0.67
@@ -38,6 +41,21 @@ No dependencies beyond Python 3.10+. Both feeds are free and unauthenticated.
 Read: **large gap + small update** = disagreement about score mechanics, worth
 a look. **Large gap + large update** = the market decided someone is playing
 differently than expected; the model has no opinion on that.
+
+## Backtest (what history can and cannot answer)
+
+Kalshi serves the full 1-minute price path for every settled ATP/WTA match
+market since the series opened at Wimbledon 2026. ESPN has no historical
+play-by-play. So:
+
+- **Can test on history:** in-play and pre-match calibration (do 10¢ contracts
+  win 10%?), H1 favorite bands, H2 longshots, and the best-of-five reload as a
+  *price-drop* rule. That is `backtest.py`. ~1,750 matches.
+- **Cannot test on history:** the score-conditional Markov model. That still
+  needs the live monitor and the Brier test below.
+
+Read the report's `t` column before the `mean` column. One entry per match,
+hold to settlement, taker at the displayed ask; maker rows are an upper bound.
 
 ## Decision criteria
 
