@@ -130,5 +130,45 @@ def analyze():
         f.write(rep)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and not (sys.argv[1:] and sys.argv[1] == "fit"):
     fetch() if (sys.argv[1:] and sys.argv[1] == "fetch") else analyze()
+
+
+def fit_sigma():
+    """Fit sigma on non-US-Open matches, test on the US Open, using the
+    first-live set-1 trade as the market benchmark."""
+    from mixture import solve_mu, set_prob_mix
+    with open(OUT) as f:
+        rows = [r for r in json.load(f) if r.get("set_first_live_trade") is not None and r.get("match_pre") is not None
+                and 0.02 < r["set_first_live_trade"] < 0.98]
+    train = [r for r in rows if "US Open" not in r["tournament"]]
+    test = [r for r in rows if "US Open" in r["tournament"]]
+    print(f"train {len(train)}  test {len(test)}")
+
+    def score(rs, sigma):
+        eng, mkt, n = 0.0, 0.0, 0
+        for r in rs:
+            mu = solve_mu(r["tour"], sigma, r["best_of"], r["match_pre"])
+            p = set_prob_mix(r["tour"], mu, sigma, r["best_of"])
+            eng += (p - r["result"]) ** 2
+            mkt += (r["set_first_live_trade"] - r["result"]) ** 2
+            n += 1
+        return eng / n, mkt / n
+
+    print(f"{'sigma':>6} {'train eng':>10} {'train mkt':>10} {'test eng':>10} {'test mkt':>10}")
+    best = None
+    import tennis_markov as tm_
+    for sigma in (0.0, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.22):
+        for fn in (tm_._set_dist_cached, tm_._match_from_sets, tm_.game_win, tm_.tb_win):
+            fn.cache_clear()
+        te, tm = score(train, sigma)
+        ve, vm = score(test, sigma)
+        print(f"{sigma:>6.2f} {te:>10.4f} {tm:>10.4f} {ve:>10.4f} {vm:>10.4f}")
+        if best is None or te < best[1]:
+            best = (sigma, te)
+    print(f"best sigma on train: {best[0]:.2f}")
+    return best[0]
+
+
+if __name__ == "__main__" and sys.argv[1:] and sys.argv[1] == "fit":
+    fit_sigma()

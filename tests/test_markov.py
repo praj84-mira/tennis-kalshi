@@ -46,7 +46,7 @@ class TestMarkov(unittest.TestCase):
     def test_solve_d_roundtrip(self):
         d = 0.08
         p = prob_at("ATP", d, 5, server=None)
-        self.assertAlmostEqual(solve_d("ATP", 5, p, server=None), d, places=5)
+        self.assertAlmostEqual(solve_d("ATP", 5, p, server=None), d, places=3)
 
     def test_best_of_five_favors_favorite(self):
         self.assertGreater(prob_at("ATP", 0.05, 5, server=None), prob_at("ATP", 0.05, 3, server=None))

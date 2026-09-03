@@ -138,7 +138,8 @@ def serve_probs(tour, d, bases=None):
     to the market anchor either way: players set the SHAPE, market sets the
     LEVEL."""
     ba, bb = bases if bases else (BASE_SERVE[tour], BASE_SERVE[tour])
-    return _clip(ba + d / 2), _clip(bb - d / 2)
+    # round to 1e-4 so the lru caches below stay bounded under bisection/mixtures
+    return round(_clip(ba + d / 2), 4), round(_clip(bb - d / 2), 4)
 
 
 def _clip(x, lo=0.30, hi=0.95):
