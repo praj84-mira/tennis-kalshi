@@ -62,7 +62,7 @@ def hypotheses(r):
     if sg is not None and sb is not None and sa is not None:
         sspread = sa - sb
         if abs(sg) >= 0.06 and sspread <= 0.06 and (gap is None or abs(gap) < GAP):
-            out.append(("act", f"Set {r.get('set_n')} winner market is {abs(sg) * 100:.0f} pts {'below' if sg > 0 else 'above'} what the chain implies from the match price (set fair {_f(r.get('set_fair')):.2f} vs {sb:.2f}/{sa:.2f}), while the match price itself agrees with the chain. Derivative mispricing candidate: the thinner market is the one that is off."))
+            out.append(("look", f"Set {r.get('set_n')} winner market is {abs(sg) * 100:.0f} pts {'below' if sg > 0 else 'above'} what the chain implies from the match price (set fair {_f(r.get('set_fair')):.2f} vs {sb:.2f}/{sa:.2f}). Backtest says: on 1,553 set-1 markets the market's set price beat the chain, and taking the chain's side of >=5-pt disagreements lost 5c/contract (t=-3.3). Treat this as the model's blind spot, not as edge, unless you know something the score does not show."))
         elif abs(sg) >= 0.06 and sspread > 0.06:
             out.append(("walk", f"Set {r.get('set_n')} market looks off by {abs(sg) * 100:.0f} pts but the spread is {sspread * 100:.0f}c. Not tradeable as a taker."))
 
