@@ -8,7 +8,7 @@ It exists to answer one question before any money or automation goes in:
 
 If no: there is no edge from score mechanics and the trading app should not
 be built. If yes: size it, then decide. **There is no order code in this
-package, by design.** See `PROJECT_BRIEF.md` for the reasoning.
+package, by design.** See `docs/PROJECT_BRIEF.md` for the reasoning.
 
 ## Run
 

@@ -57,6 +57,15 @@ def hypotheses(r):
     elif gap is not None:
         out.append(("walk", f"Gap is {gap * 100:+.1f} pts, inside noise. Priced."))
 
+    # 2b. the derivative: does the set-winner market agree with the chain?
+    sg, sb, sa = _f(r.get("set_gap")), _f(r.get("set_bid")), _f(r.get("set_ask"))
+    if sg is not None and sb is not None and sa is not None:
+        sspread = sa - sb
+        if abs(sg) >= 0.06 and sspread <= 0.06 and (gap is None or abs(gap) < GAP):
+            out.append(("act", f"Set {r.get('set_n')} winner market is {abs(sg) * 100:.0f} pts {'below' if sg > 0 else 'above'} what the chain implies from the match price (set fair {_f(r.get('set_fair')):.2f} vs {sb:.2f}/{sa:.2f}), while the match price itself agrees with the chain. Derivative mispricing candidate: the thinner market is the one that is off."))
+        elif abs(sg) >= 0.06 and sspread > 0.06:
+            out.append(("walk", f"Set {r.get('set_n')} market looks off by {abs(sg) * 100:.0f} pts but the spread is {sspread * 100:.0f}c. Not tradeable as a taker."))
+
     # 3. patterns worth naming
     if anchor is not None and best_of == 5 and anchor >= 0.70 and sets_a < sets_b:
         out.append(("look", "Best-of-five favorite down a set: the reload pattern. Check the backtest report's 'reload' rows for what buying here has actually returned after fees before treating it as edge."))
@@ -72,12 +81,14 @@ def hypotheses(r):
 
 
 def verdict(hyps):
-    """walk if the gap is inside noise or a blocker is present; act only when
-    the score-mechanics case stands with nothing blocking it; else look."""
-    sev = [s for s, _ in hyps]
-    texts = " ".join(t for _, t in hyps)
-    if "inside noise" in texts or "Nothing to act on" in texts or "No anchor" in texts:
+    """act only when an 'act' case stands and nothing blocks it (wide spread,
+    stale score, fee zone, untradeable set market); walk if the row is priced
+    or blocked; look otherwise."""
+    blockers = [t for s, t in hyps if s == "walk" and "inside noise" not in t and "Nothing to act on" not in t and "No anchor" not in t]
+    if any(s == "act" for s, _ in hyps) and not blockers:
+        return "act"
+    if blockers:
         return "walk"
-    if "walk" in sev:
-        return "walk"
-    return "act" if "act" in sev else "look"
+    if any(s == "look" for s, _ in hyps):
+        return "look"
+    return "walk"

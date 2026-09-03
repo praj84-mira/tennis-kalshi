@@ -15,7 +15,8 @@ import time
 from datetime import datetime, timezone
 
 import feeds
-from tennis_markov import fair_and_update, solve_d, prob_at
+from tennis_markov import fair_and_update, solve_d, prob_at, serve_probs
+from derivatives import current_set_winner
 import priors as priors_mod
 from hypotheses import hypotheses, verdict
 
@@ -28,7 +29,8 @@ COLS = ["ts", "event_ticker", "ticker_a", "ticker_b", "tour", "best_of", "round"
         "a", "b", "seed_a", "seed_b", "state", "detail", "sets_a", "sets_b", "games_a", "games_b",
         "tb_a", "tb_b", "server", "bid", "ask", "mid", "last", "bid_size", "ask_size", "volume",
         "anchor", "anchor_src", "d_pre", "fair", "gap", "d_live", "update_pts",
-        "fair_if_a_serves", "fair_if_b_serves", "score_age_s", "price_move_since_score", "bases", "verdict"]
+        "fair_if_a_serves", "fair_if_b_serves", "score_age_s", "price_move_since_score", "bases", "verdict",
+        "set_n", "set_ticker", "set_bid", "set_ask", "set_mid", "set_fair", "set_gap"]
 
 
 def load(path, default):
@@ -111,9 +113,13 @@ PRIORS = priors_mod.load()
 
 
 def tick(anchors, servers, log):
-    events = {}
+    events, setmk = {}, {}
     for tour in ("ATP", "WTA"):
         events.update(feeds.kalshi_open_markets(tour))
+        try:
+            setmk.update(feeds.kalshi_open_by_ticker(feeds.SET_SERIES[tour]))
+        except RuntimeError as e:
+            log(f"set markets fetch failed {tour}: {e}")
     matches = feeds.espn_singles()
     joined = feeds.match_kalshi_to_espn(events, matches)
     rows = []
@@ -149,12 +155,35 @@ def tick(anchors, servers, log):
                         "fair_if_a_serves": round(fa, 4), "fair_if_b_serves": round(fb, 4),
                         "score_age_s": int(age), "price_move_since_score": round(dpx, 4),
                         "bases": f"{b_[0]:.3f}/{b_[1]:.3f}" if b_ else ""})
+            # current-set winner market for A, priced off the same chain
+            set_n = m["sets"][0] + m["sets"][1] + 1
+            code, suffix = a["event_ticker"].split("-")[1], a["ticker"].split("-")[-1]
+            sm = setmk.get(f"{feeds.SET_SERIES[m['tour']]}-{code}-{set_n}-{suffix}")
+            pa_, pb_ = serve_probs(m["tour"], anc["d_pre"], b_)
+            set_fair = current_set_winner(pa_, pb_, m["best_of"], m["sets"], m["games"], server, tb_pts=m["tb_pts"])
+            row.update({"set_n": set_n, "set_fair": round(set_fair, 4)})
+            if sm:
+                row.update({"set_ticker": sm["ticker"], "set_bid": sm["bid"], "set_ask": sm["ask"], "set_mid": sm["mid"],
+                            "set_gap": round(set_fair - sm["mid"], 4) if sm["mid"] is not None else ""})
         hyps = hypotheses(row)
         row["verdict"] = verdict(hyps)
         row["hypotheses"] = hyps
         rows.append(row)
     unmatched = [ev for ev in events if ev not in {a["event_ticker"] for _, a, _ in joined}]
     return rows, len(matches), unmatched
+
+
+def rotate_if_stale(path):
+    """If the CSV on disk has a different header than COLS, move it aside so
+    the new schema gets a fresh file. Returns True if a header must be written."""
+    if not os.path.exists(path):
+        return True
+    with open(path) as f:
+        hdr = f.readline().strip().split(",")
+    if hdr == COLS:
+        return False
+    os.replace(path, path.replace(".csv", f".{int(time.time())}.csv"))
+    return True
 
 
 def fmt(rows):
@@ -179,7 +208,7 @@ def main():
     log = (lambda *a: None) if args.quiet else (lambda *a: print(*a, file=sys.stderr))
     anchors, servers = load(ANCHORS, {}), load(SERVERS, {})
     os.makedirs(DATA, exist_ok=True)
-    new = not os.path.exists(LOG)
+    new = rotate_if_stale(LOG)
     while True:
         try:
             rows, n_espn, unmatched = tick(anchors, servers, log)

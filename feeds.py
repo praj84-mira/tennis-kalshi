@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard"
 SERIES = {"ATP": "KXATPMATCH", "WTA": "KXWTAMATCH"}
+SET_SERIES = {"ATP": "KXATPSETWINNER", "WTA": "KXWTASETWINNER"}
 UA = "usopen-fairvalue/0.1 (read-only monitor)"
 
 # Fee schedule. fee_type on KXATPMATCH / KXWTAMATCH is
@@ -53,6 +54,22 @@ def _f(x):
 
 
 # ------------------------------------------------------------- Kalshi
+def kalshi_open_by_ticker(series):
+    """All open markets in a series, keyed by ticker (used for set-winner markets)."""
+    out, cursor = {}, None
+    while True:
+        params = {"series_ticker": series, "status": "open", "limit": 200}
+        if cursor:
+            params["cursor"] = cursor
+        d = _get(f"{KALSHI}/markets", params)
+        for m in d.get("markets", []):
+            out[m["ticker"]] = market_row(m)
+        cursor = d.get("cursor")
+        if not cursor:
+            break
+    return out
+
+
 def kalshi_open_markets(tour):
     """All open markets in the tour's match series, grouped by event."""
     out = []

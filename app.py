@@ -40,7 +40,7 @@ def kalshi_url(event_ticker):
 def loop(interval):
     anchors, servers = monitor.load(monitor.ANCHORS, {}), monitor.load(monitor.SERVERS, {})
     os.makedirs(monitor.DATA, exist_ok=True)
-    new = not os.path.exists(monitor.LOG)
+    new = monitor.rotate_if_stale(monitor.LOG)
     while True:
         try:
             rows, n, unmatched = monitor.tick(anchors, servers, lambda *a: print(*a, file=sys.stderr))
@@ -121,14 +121,14 @@ async function live(){
   $('#st').textContent=(d.ts?`tick ${d.ts} · live ${d.rows.length} · espn ${d.n_espn} · kalshi unmatched ${d.unmatched}`:'starting…')+(d.err?` · ERROR ${d.err}`:'');
   if(!d.rows.length){$('#live').textContent='no live singles matches matched right now';return}
   d.rows.sort((a,b)=>Math.abs(b.gap||0)-Math.abs(a.gap||0));
-  let h='<table><tr><th class=l>match (A v B)</th><th class=l>score</th><th>sv</th><th>bid</th><th>ask</th><th>anchor</th><th>fair</th><th>gap</th><th>upd</th><th>vol</th><th>book</th><th>age</th><th></th><th></th></tr>';
+  let h='<table><tr><th class=l>match (A v B)</th><th class=l>score</th><th>sv</th><th>bid</th><th>ask</th><th>anchor</th><th>fair</th><th>gap</th><th>upd</th><th>vol</th><th>book</th><th>set</th><th>age</th><th></th><th></th></tr>';
   for(const r of d.rows){
     const sc=`${r.sets_a}-${r.sets_b} ${r.games_a}-${r.games_b}`+(r.tb_a!==''?` (${r.tb_a}-${r.tb_b})`:'');
     const big=Math.abs(r.gap||0)>=0.05&&Math.abs(r.update_pts||0)<1.5;
     const sv=r.server==='?'&&r.fair_if_a_serves!==''?` <span class=dim title="fair if A serves / if B serves">${f(r.fair_if_a_serves)}/${f(r.fair_if_b_serves)}</span>`:'';
     const age=r.score_age_s!==''?`${Math.round(r.score_age_s/60)}m`:'';
-    h+=`<tr><td class=l><a href="${r.url}" target=_blank>${r.a}</a> v ${r.b} <span class=dim>${r.tour} ${r.round||''}${r.bases?' · profiles':''}</span></td><td class=l>${sc}</td><td>${r.server}</td><td>${f(r.bid)}</td><td>${f(r.ask)}</td><td>${f(r.anchor)} <span class=dim>${r.anchor_src==='trade'?'':r.anchor_src||''}</span></td><td>${f(r.fair)}${sv}</td><td class="${cls(r.gap)} ${big?'big':''}">${f(r.gap,3)}</td><td class="${cls(r.update_pts)}">${f(r.update_pts,1)}</td><td>${f(r.volume,0)}</td><td class=dim>${f(r.bid_size,0)}/${f(r.ask_size,0)}</td><td class=dim>${age}</td><td><span class="v v-${r.verdict}">${r.verdict}</span></td><td><a href=# onclick="pre('${r.ticker_a}',${r.ask});return false">log</a></td></tr>`;
-    h+=`<tr class=hy><td colspan=14><ul style="margin:0;padding-left:14px">${(r.hypotheses||[]).map(([s,t])=>`<li><b class="v v-${s}">${s}</b>${t}</li>`).join('')}</ul></td></tr>`;}
+    h+=`<tr><td class=l><a href="${r.url}" target=_blank>${r.a}</a> v ${r.b} <span class=dim>${r.tour} ${r.round||''}${r.bases?' · profiles':''}</span></td><td class=l>${sc}</td><td>${r.server}</td><td>${f(r.bid)}</td><td>${f(r.ask)}</td><td>${f(r.anchor)} <span class=dim>${r.anchor_src==='trade'?'':r.anchor_src||''}</span></td><td>${f(r.fair)}${sv}</td><td class="${cls(r.gap)} ${big?'big':''}">${f(r.gap,3)}</td><td class="${cls(r.update_pts)}">${f(r.update_pts,1)}</td><td>${f(r.volume,0)}</td><td class=dim>${f(r.bid_size,0)}/${f(r.ask_size,0)}</td><td title="current set: market bid/ask · chain fair">${r.set_n?`S${r.set_n} `:''}${r.set_bid!==''&&r.set_bid!=null?`${f(r.set_bid)}/${f(r.set_ask)} `:''}<span class="${cls(r.set_gap)}">${f(r.set_fair)}</span></td><td class=dim>${age}</td><td><span class="v v-${r.verdict}">${r.verdict}</span></td><td><a href=# onclick="pre('${r.ticker_a}',${r.ask});return false">log</a></td></tr>`;
+    h+=`<tr class=hy><td colspan=15><ul style="margin:0;padding-left:14px">${(r.hypotheses||[]).map(([s,t])=>`<li><b class="v v-${s}">${s}</b>${t}</li>`).join('')}</ul></td></tr>`;}
   $('#live').innerHTML=h+'</table>';
 }
 function pre(t,p){const tf=$('#tf');tf.ticker.value=t;tf.price.value=p;tf.reason.focus()}
