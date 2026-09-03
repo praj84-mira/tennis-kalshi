@@ -45,7 +45,7 @@ def loop(interval):
         try:
             rows, n, unmatched = monitor.tick(anchors, servers, lambda *a: print(*a, file=sys.stderr))
             with open(monitor.LOG, "a", newline="") as f:
-                w = csv.DictWriter(f, fieldnames=monitor.COLS)
+                w = csv.DictWriter(f, fieldnames=monitor.COLS, extrasaction="ignore")
                 if new:
                     w.writeheader()
                     new = False
@@ -82,6 +82,8 @@ input,select{background:#0f1115;color:#eee;border:1px solid #333;padding:4px 6px
 input.w{width:320px}button{background:#2b5fd9;color:#fff;border:0;padding:5px 12px;border-radius:4px;cursor:pointer}
 pre{white-space:pre;overflow-x:auto;font-size:12px;background:#0f1115;padding:10px;border-radius:4px}
 .warn{color:#ffb454}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.v{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}.v-act{background:#1f5c35;color:#9ff0b6}.v-look{background:#5c4a1f;color:#ffd58a}.v-walk{background:#2a2f3a;color:#9aa}
+tr.hy td{white-space:normal;text-align:left;color:#cfd3da;background:#12151c;padding:6px 14px 8px 28px}tr.hy li{margin:2px 0}tr.hy b{font-size:11px;margin-right:6px}
 </style>
 <header><b>usopen-fairvalue</b><span id=st>starting…</span><span class=dim>read-only · fair = score-only model anchored to pre-match price · gap = fair − mid · upd = serve-pts the market re-rated A</span></header>
 <main>
@@ -119,11 +121,14 @@ async function live(){
   $('#st').textContent=(d.ts?`tick ${d.ts} · live ${d.rows.length} · espn ${d.n_espn} · kalshi unmatched ${d.unmatched}`:'starting…')+(d.err?` · ERROR ${d.err}`:'');
   if(!d.rows.length){$('#live').textContent='no live singles matches matched right now';return}
   d.rows.sort((a,b)=>Math.abs(b.gap||0)-Math.abs(a.gap||0));
-  let h='<table><tr><th class=l>match (A v B)</th><th class=l>score</th><th>sv</th><th>bid</th><th>ask</th><th>anchor</th><th>fair</th><th>gap</th><th>upd</th><th>vol</th><th>book</th><th></th></tr>';
+  let h='<table><tr><th class=l>match (A v B)</th><th class=l>score</th><th>sv</th><th>bid</th><th>ask</th><th>anchor</th><th>fair</th><th>gap</th><th>upd</th><th>vol</th><th>book</th><th>age</th><th></th><th></th></tr>';
   for(const r of d.rows){
     const sc=`${r.sets_a}-${r.sets_b} ${r.games_a}-${r.games_b}`+(r.tb_a!==''?` (${r.tb_a}-${r.tb_b})`:'');
     const big=Math.abs(r.gap||0)>=0.05&&Math.abs(r.update_pts||0)<1.5;
-    h+=`<tr><td class=l><a href="${r.url}" target=_blank>${r.a}</a> v ${r.b} <span class=dim>${r.tour} ${r.round||''}</span></td><td class=l>${sc}</td><td>${r.server}</td><td>${f(r.bid)}</td><td>${f(r.ask)}</td><td>${f(r.anchor)} <span class=dim>${r.anchor_src==='trade'?'':r.anchor_src||''}</span></td><td>${f(r.fair)}</td><td class="${cls(r.gap)} ${big?'big':''}">${f(r.gap,3)}</td><td class="${cls(r.update_pts)}">${f(r.update_pts,1)}</td><td>${f(r.volume,0)}</td><td class=dim>${f(r.bid_size,0)}/${f(r.ask_size,0)}</td><td><a href=# onclick="pre('${r.ticker_a}',${r.ask});return false">log</a></td></tr>`;}
+    const sv=r.server==='?'&&r.fair_if_a_serves!==''?` <span class=dim title="fair if A serves / if B serves">${f(r.fair_if_a_serves)}/${f(r.fair_if_b_serves)}</span>`:'';
+    const age=r.score_age_s!==''?`${Math.round(r.score_age_s/60)}m`:'';
+    h+=`<tr><td class=l><a href="${r.url}" target=_blank>${r.a}</a> v ${r.b} <span class=dim>${r.tour} ${r.round||''}${r.bases?' · profiles':''}</span></td><td class=l>${sc}</td><td>${r.server}</td><td>${f(r.bid)}</td><td>${f(r.ask)}</td><td>${f(r.anchor)} <span class=dim>${r.anchor_src==='trade'?'':r.anchor_src||''}</span></td><td>${f(r.fair)}${sv}</td><td class="${cls(r.gap)} ${big?'big':''}">${f(r.gap,3)}</td><td class="${cls(r.update_pts)}">${f(r.update_pts,1)}</td><td>${f(r.volume,0)}</td><td class=dim>${f(r.bid_size,0)}/${f(r.ask_size,0)}</td><td class=dim>${age}</td><td><span class="v v-${r.verdict}">${r.verdict}</span></td><td><a href=# onclick="pre('${r.ticker_a}',${r.ask});return false">log</a></td></tr>`;
+    h+=`<tr class=hy><td colspan=14><ul style="margin:0;padding-left:14px">${(r.hypotheses||[]).map(([s,t])=>`<li><b class="v v-${s}">${s}</b>${t}</li>`).join('')}</ul></td></tr>`;}
   $('#live').innerHTML=h+'</table>';
 }
 function pre(t,p){const tf=$('#tf');tf.ticker.value=t;tf.price.value=p;tf.reason.focus()}

@@ -131,27 +131,32 @@ def match_win_avg_server(pa, pb, best_of=3, **kw):
 
 
 # ------------------------------------------------------------ strength
-def serve_probs(tour, d):
-    """Map a strength differential d to (pa, pb) around the tour base rate."""
-    base = BASE_SERVE[tour]
-    return _clip(base + d / 2), _clip(base - d / 2)
+def serve_probs(tour, d, bases=None):
+    """Map a strength differential d to (pa, pb). `bases` = per-player serve
+    point-win rates (from priors.py: A's serve% vs B's return%, and vice
+    versa); default is the tour constant for both. The differential d is fit
+    to the market anchor either way: players set the SHAPE, market sets the
+    LEVEL."""
+    ba, bb = bases if bases else (BASE_SERVE[tour], BASE_SERVE[tour])
+    return _clip(ba + d / 2), _clip(bb - d / 2)
 
 
 def _clip(x, lo=0.30, hi=0.95):
     return max(lo, min(hi, x))
 
 
-def prob_at(tour, d, best_of, **state):
-    pa, pb = serve_probs(tour, d)
+def prob_at(tour, d, best_of, bases=None, **state):
+    pa, pb = serve_probs(tour, d, bases)
     if state.get("server") is None:
         state.pop("server", None)
         return match_win_avg_server(pa, pb, best_of, **state)
     return match_win(pa, pb, best_of, **state)
 
 
-def solve_d(tour, best_of, target, lo=-0.5, hi=0.5, **state):
+def solve_d(tour, best_of, target, lo=-0.5, hi=0.5, bases=None, **state):
     """Bisection: find d such that prob_at(tour, d, best_of, **state) = target."""
     target = min(max(target, 1e-4), 1 - 1e-4)
+    state["bases"] = bases
     flo, fhi = prob_at(tour, lo, best_of, **state), prob_at(tour, hi, best_of, **state)
     if target <= flo:
         return lo
@@ -167,11 +172,12 @@ def solve_d(tour, best_of, target, lo=-0.5, hi=0.5, **state):
     return 0.5 * (lo + hi)
 
 
-def fair_and_update(tour, best_of, d_pre, mid, **state):
+def fair_and_update(tour, best_of, d_pre, mid, bases=None, **state):
     """fair   : P(A) now if only the score changed since the pre-match anchor.
        d_live : strength differential the live price implies at this score.
        update : serve-point re-rating of A implied by the market, in pct pts
                 (= (pa_live - pa_pre) * 100)."""
+    state["bases"] = bases
     fair = prob_at(tour, d_pre, best_of, **state)
     if mid is None:
         return fair, None, None

@@ -42,6 +42,31 @@ Read: **large gap + small update** = disagreement about score mechanics, worth
 a look. **Large gap + large update** = the market decided someone is playing
 differently than expected; the model has no opinion on that.
 
+## Why the anchor is the market, not a player model
+
+Head-to-head, surface record, round, time of day, form, ranking: those are
+pre-match inputs, and the Kalshi opening price already carries the whole
+market's view of them. Re-deriving them means competing with the opening
+line, which the research says is efficient. This package deliberately does
+not. It holds the pre-match price fixed and asks only whether the market
+prices the *score* correctly.
+
+The one player-level input that changes the in-play number is serve/return
+shape (big servers make a break worth more, grinders less). Measured effect
+with the level fixed: under 0.1 pt at set-level states, 2-6 pts mid-set at
+a break. `priors.py` builds those profiles from Sackmann's match CSVs on
+your machine (see its docstring); the monitor uses them automatically when
+`data/priors.json` exists and shows "profiles" on the row.
+
+## Hypotheses
+
+Every live row gets a verdict (`act` / `look` / `walk`) and a list of
+checkable reasons for the gap, in `hypotheses.py`: wide spread, stale ESPN
+score while the price moved, unknown server (both fairs shown), tiebreak
+with unknown points, 45-55c fee zone, score-mechanics disagreement vs.
+market re-rating, best-of-five reload, extreme price. They are derived from
+the row, not predicted; the point is to make the next action obvious.
+
 ## Backtest (what history can and cannot answer)
 
 Kalshi serves the full 1-minute price path for every settled ATP/WTA match

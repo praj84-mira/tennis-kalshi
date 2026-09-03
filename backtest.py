@@ -63,8 +63,13 @@ def parse_rules(r):
 
 
 def candles(series, ticker, start, end):
-    cs = _get(f"{KALSHI}/series/{series}/markets/{ticker}/candlesticks",
-              {"start_ts": int(start), "end_ts": int(end), "period_interval": 1}).get("candlesticks", [])
+    """1-minute candles; the API caps one request at 5000 candles, so chunk."""
+    cs, s = [], int(start)
+    while s < int(end):
+        e = min(int(end), s + 4990 * 60)
+        cs += _get(f"{KALSHI}/series/{series}/markets/{ticker}/candlesticks",
+                   {"start_ts": s, "end_ts": e, "period_interval": 1}).get("candlesticks", [])
+        s = e + 60
     rows = []
     for c in cs:
         b, a = _f(c.get("yes_bid", {}).get("close_dollars")), _f(c.get("yes_ask", {}).get("close_dollars"))
