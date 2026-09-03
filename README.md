@@ -82,6 +82,25 @@ play-by-play. So:
 Read the report's `t` column before the `mean` column. One entry per match,
 hold to settlement, taker at the displayed ask; maker rows are an upper bound.
 
+## Backtest result (2026-09-03, 1,655 matches, Wimbledon through US Open R64)
+
+Full report: `reports/backtest-2026-09-03.txt`. Summary:
+
+- **In-play prices are calibrated to within half a point in every 5c bin, both
+  tours.** No favorite-longshot bias to harvest in tennis on Kalshi.
+- **Every price-level taker rule loses about the fee.** H1 favorite bands:
+  -2 to -4c per contract, t = -2 to -3. H2 longshots: -1 to -2c, t = -2 to -3.
+  Best-of-five reload (favorite >= 0.70 whose ask fell 10-30 pts): -2 to -5c
+  at every threshold, n = 190-330. Maker-side upper bounds are also negative.
+- **One suggestive pre-match bin:** favorites priced 0.90-1.00 at the scheduled
+  start won 96 of 97 (priced at 93%). p ~ 0.01 before any multiple-testing
+  correction, n = 97. Watch it; do not size it.
+
+What this kills: H1, H2, H3-as-taker, and the reload as a price rule. What it
+does not test: the score-conditional model. That still needs live rows, but
+the prior is now low: a market this calibrated in aggregate leaves room only
+for situation-specific mispricing, which is what the hypotheses layer is for.
+
 ## Decision criteria
 
 Run `monitor.py` through the round of 32. Then `settle.py --min-gap 0.05`.
