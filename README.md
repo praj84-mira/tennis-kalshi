@@ -101,6 +101,30 @@ does not test: the score-conditional model. That still needs live rows, but
 the prior is now low: a market this calibrated in aggregate leaves room only
 for situation-specific mispricing, which is what the hypotheses layer is for.
 
+## Set-winner markets and the mixture model (2026-09-03)
+
+Kalshi's set-winner markets are the liquid derivative (ATP set winner did
+$537k in 24h). `backtest_sets.py` tests them where no score timeline is
+needed: at the scheduled start, fit the chain to the match price, read off
+P(A wins set 1), score it against the set-1 market price on the real result.
+Reports: `reports/backtest-sets-2026-09-03.txt`, `reports/sigma-fit-2026-09-03.txt`.
+
+- **The market's set-1 price beats the plain chain** (Brier 0.2085 vs 0.2181
+  on the first live trade, n = 1,553), and the chain's >= 5-pt disagreements
+  lose 5c per contract (t = -3.3). The chain under-rates favorites in set 1.
+- **Why:** sets are not draws from one fixed strength. Modeling the strength
+  differential as Normal(mu, sigma) fixes part of it. sigma = 0.09 fit on
+  Wimbledon-to-Cincinnati, US Open holdout Brier 0.2067 -> 0.2002. Market
+  still 0.1896. Adopted: `fair` and `set_fair` in the monitor are now the
+  mixture; the plain-chain numbers are logged as `fair_iid`, `set_fair_iid`.
+- The mixture also updates on observed sets, so a favorite who drops a set is
+  re-rated, which is what the reload backtest said the market already does.
+
+Three of the research brief's open questions now have Kalshi-specific
+answers: no favorite-longshot bias in 2026 tennis in-play prices; no
+exploitable over-reaction to a lost set; set-1 markets are priced better
+than a match-price-anchored chain, not worse.
+
 ## Decision criteria
 
 Run `monitor.py` through the round of 32. Then `settle.py --min-gap 0.05`.

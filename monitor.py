@@ -17,6 +17,9 @@ from datetime import datetime, timezone
 import feeds
 from tennis_markov import fair_and_update, solve_d, prob_at, serve_probs
 from derivatives import current_set_winner
+from mixture import solve_mu, prob_mix, set_prob_mix
+
+SIGMA = 0.09   # strength uncertainty; fit on Wimbledon..Cincinnati set-1 markets, held out on the US Open
 import priors as priors_mod
 from hypotheses import hypotheses, verdict
 
@@ -30,7 +33,7 @@ COLS = ["ts", "event_ticker", "ticker_a", "ticker_b", "tour", "best_of", "round"
         "tb_a", "tb_b", "server", "bid", "ask", "mid", "last", "bid_size", "ask_size", "volume",
         "anchor", "anchor_src", "d_pre", "fair", "gap", "d_live", "update_pts",
         "fair_if_a_serves", "fair_if_b_serves", "score_age_s", "price_move_since_score", "bases", "verdict",
-        "set_n", "set_ticker", "set_bid", "set_ask", "set_mid", "set_fair", "set_gap"]
+        "set_n", "set_ticker", "set_bid", "set_ask", "set_mid", "set_fair", "set_gap", "fair_iid", "set_fair_iid"]
 
 
 def load(path, default):
@@ -75,7 +78,8 @@ def anchor_for(anchors, m, a, b, log, bases=None):
         return None
     px = min(max(px, 0.02), 0.98)
     d_pre = solve_d(m["tour"], m["best_of"], px, server=None, bases=bases)
-    rec = {"price": px, "src": src, "d_pre": d_pre, "ts": time.time(), "bases": bases}
+    mu = solve_mu(m["tour"], SIGMA, m["best_of"], px, bases=bases)
+    rec = {"price": px, "src": src, "d_pre": d_pre, "mu": mu, "ts": time.time(), "bases": bases}
     anchors[key] = rec
     return rec
 
@@ -145,11 +149,15 @@ def tick(anchors, servers, log):
         if anc:
             state = {"sets": m["sets"], "games": m["games"], "server": server, "tb_pts": m["tb_pts"]}
             b_ = anc.get("bases")
-            fair, d_live, upd = fair_and_update(m["tour"], m["best_of"], anc["d_pre"], a["mid"], bases=b_, **state)
-            fa = prob_at(m["tour"], anc["d_pre"], m["best_of"], bases=b_, **dict(state, server=0))
-            fb = prob_at(m["tour"], anc["d_pre"], m["best_of"], bases=b_, **dict(state, server=1))
+            fair_iid, d_live, upd = fair_and_update(m["tour"], m["best_of"], anc["d_pre"], a["mid"], bases=b_, **state)
+            mu = anc.get("mu")
+            if mu is None:
+                mu = anc["mu"] = solve_mu(m["tour"], SIGMA, m["best_of"], anc["price"], bases=b_)
+            fair = prob_mix(m["tour"], mu, SIGMA, m["best_of"], bases=b_, **state)
+            fa = prob_mix(m["tour"], mu, SIGMA, m["best_of"], bases=b_, **dict(state, server=0))
+            fb = prob_mix(m["tour"], mu, SIGMA, m["best_of"], bases=b_, **dict(state, server=1))
             row.update({"anchor": round(anc["price"], 4), "anchor_src": anc["src"], "d_pre": round(anc["d_pre"], 5),
-                        "fair": round(fair, 4), "gap": round(fair - a["mid"], 4) if a["mid"] is not None else "",
+                        "fair": round(fair, 4), "fair_iid": round(fair_iid, 4), "gap": round(fair - a["mid"], 4) if a["mid"] is not None else "",
                         "d_live": round(d_live, 5) if d_live is not None else "",
                         "update_pts": round(upd, 2) if upd is not None else "",
                         "fair_if_a_serves": round(fa, 4), "fair_if_b_serves": round(fb, 4),
@@ -160,8 +168,9 @@ def tick(anchors, servers, log):
             code, suffix = a["event_ticker"].split("-")[1], a["ticker"].split("-")[-1]
             sm = setmk.get(f"{feeds.SET_SERIES[m['tour']]}-{code}-{set_n}-{suffix}")
             pa_, pb_ = serve_probs(m["tour"], anc["d_pre"], b_)
-            set_fair = current_set_winner(pa_, pb_, m["best_of"], m["sets"], m["games"], server, tb_pts=m["tb_pts"])
-            row.update({"set_n": set_n, "set_fair": round(set_fair, 4)})
+            set_fair_iid = current_set_winner(pa_, pb_, m["best_of"], m["sets"], m["games"], server, tb_pts=m["tb_pts"])
+            set_fair = set_prob_mix(m["tour"], mu, SIGMA, m["best_of"], m["sets"], m["games"], server, tb_pts=m["tb_pts"], bases=b_)
+            row.update({"set_n": set_n, "set_fair": round(set_fair, 4), "set_fair_iid": round(set_fair_iid, 4)})
             if sm:
                 row.update({"set_ticker": sm["ticker"], "set_bid": sm["bid"], "set_ask": sm["ask"], "set_mid": sm["mid"],
                             "set_gap": round(set_fair - sm["mid"], 4) if sm["mid"] is not None else ""})
